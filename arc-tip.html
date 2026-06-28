@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ArcTip — Arc 테스트넷 USDC 티핑</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #08080f; --surface: #0f0f1a; --border: #1a1a2e;
+      --accent: #6c47ff; --accent-light: #8b69ff; --cyan: #00d4ff;
+      --text: #ffffff; --dim: #6b6b8a; --green: #4ade80; --red: #f87171;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; padding: 48px 20px 80px;
+    }
+    .header { width: 100%; max-width: 480px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--cyan)); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .logo-name { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo-sub { font-size: 11px; color: var(--dim); margin-top: 1px; }
+    .network-badge { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 6px 12px; font-size: 11px; color: var(--dim); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #555; }
+    .dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .card { width: 100%; max-width: 480px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px; }
+    .btn-connect { width: 100%; padding: 16px; background: linear-gradient(135deg, var(--accent), var(--cyan)); border: none; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; letter-spacing: -0.2px; }
+    .btn-connect:hover { opacity: 0.88; }
+    .btn-connect:disabled { opacity: 0.4; cursor: not-allowed; }
+    .wallet-info { display: none; background: #0a0a14; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 24px; }
+    .wallet-info.show { display: flex; align-items: center; justify-content: space-between; }
+    .wallet-addr { font-size: 13px; color: var(--dim); font-family: monospace; }
+    .wallet-balance { font-size: 14px; font-weight: 700; color: var(--green); }
+    .form { display: none; flex-direction: column; gap: 16px; }
+    .form.show { display: flex; }
+    label { font-size: 12px; color: var(--dim); font-weight: 600; letter-spacing: 0.5px; margin-bottom: 6px; display: block; }
+    input[type="text"], input[type="number"], textarea { width: 100%; background: #0a0a14; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 14px; outline: none; transition: border-color 0.15s; font-family: inherit; }
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus { border-color: var(--accent); }
+    input::placeholder, textarea::placeholder { color: #2a2a3e; }
+    textarea { resize: none; height: 80px; }
+    .presets { display: flex; gap: 8px; }
+    .preset-btn { flex: 1; padding: 8px; background: #0a0a14; border: 1px solid var(--border); border-radius: 8px; color: var(--dim); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .preset-btn:hover, .preset-btn.active { border-color: var(--accent); color: var(--text); }
+    .btn-send { width: 100%; padding: 16px; background: linear-gradient(135deg, var(--accent), var(--cyan)); border: none; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; margin-top: 4px; }
+    .btn-send:hover { opacity: 0.88; }
+    .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+    .status { display: none; align-items: center; gap: 10px; padding: 14px 16px; border-radius: 12px; font-size: 13px; margin-top: 8px; }
+    .status.show { display: flex; }
+    .status.pending { background: #0d0d1f; border: 1px solid var(--accent); color: var(--accent-light); }
+    .status.success { background: #0f1f0f; border: 1px solid #1a4d1a; color: var(--green); }
+    .status.error { background: #1f0f0f; border: 1px solid #4d1a1a; color: var(--red); }
+    .spinner { width: 16px; height: 16px; border: 2px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+    .tx-link { font-size: 11px; color: var(--dim); text-decoration: none; font-family: monospace; word-break: break-all; }
+    .tx-link:hover { color: var(--accent-light); }
+    .info { width: 100%; max-width: 480px; margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--dim); line-height: 1.5; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      <div>
+        <div class="logo-name">ArcTip</div>
+        <div class="logo-sub">USDC 온체인 티핑</div>
+      </div>
+    </div>
+    <div class="network-badge">
+      <div class="dot" id="dot"></div>
+      <span id="network-label">Arc Testnet</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="before-connect">
+      <div style="text-align:center; padding: 16px 0 28px;">
+        <div style="font-size:32px; margin-bottom:12px;">⬡</div>
+        <div style="font-size:20px; font-weight:800; letter-spacing:-0.5px; margin-bottom:8px;">Arc에서 USDC 보내기</div>
+        <div style="font-size:13px; color:var(--dim); line-height:1.6;">가스비 없음 · 1초 finality · Arc 테스트넷</div>
+      </div>
+      <button class="btn-connect" id="btn-connect" onclick="connectWallet()">MetaMask 연결하기</button>
+    </div>
+
+    <div class="wallet-info" id="wallet-info">
+      <div>
+        <div style="font-size:11px; color:var(--dim); margin-bottom:3px;">연결된 지갑</div>
+        <div class="wallet-addr" id="wallet-addr">—</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px; color:var(--dim); margin-bottom:3px;">USDC 잔액</div>
+        <div class="wallet-balance" id="wallet-balance">— USDC</div>
+      </div>
+    </div>
+
+    <div class="form" id="tip-form">
+      <div>
+        <label>받는 지갑 주소</label>
+        <input type="text" id="to-address" placeholder="0x..." />
+      </div>
+      <div>
+        <label>금액 (USDC)</label>
+        <div class="presets" style="margin-bottom:8px;">
+          <button class="preset-btn" onclick="setAmount(1, this)">1</button>
+          <button class="preset-btn" onclick="setAmount(5, this)">5</button>
+          <button class="preset-btn" onclick="setAmount(10, this)">10</button>
+          <button class="preset-btn" onclick="setAmount(50, this)">50</button>
+        </div>
+        <input type="number" id="amount" placeholder="직접 입력..." min="0" step="0.01" />
+      </div>
+      <div>
+        <label>메시지 (선택)</label>
+        <textarea id="message" placeholder="같이 빌딩하자 💜"></textarea>
+      </div>
+      <button class="btn-send" id="btn-send" onclick="sendTip()">USDC 보내기 →</button>
+      <div class="status pending" id="status-pending">
+        <div class="spinner"></div>
+        <span>트랜잭션 전송 중...</span>
+      </div>
+      <div class="status success" id="status-success">
+        <span>✓</span>
+        <div>
+          <div style="font-weight:600; margin-bottom:3px;">전송 완료!</div>
+          <a class="tx-link" id="tx-link" href="#" target="_blank">TX 확인하기 →</a>
+        </div>
+      </div>
+      <div class="status error" id="status-error">
+        <span>✕</span>
+        <span id="error-msg">오류가 발생했어요.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="info">
+    <span style="font-size:20px;">⬡</span>
+    <span>
+      Chain ID: 5042002 · RPC: rpc.testnet.arc.network ·
+      <a href="https://testnet.arcscan.app" target="_blank" style="color:var(--accent-light); text-decoration:none;">arcscan.app</a> ·
+      메인넷 2026 여름 예정
+    </span>
+  </div>
+
+<script>
+  // ── 공식 Arc 테스트넷 설정 ─────────────────────────────────────
+  const ARC_CHAIN_ID_HEX = "0x" + (5042002).toString(16); // 0x4CDCD2
+  const ARC_TESTNET = {
+    chainId: ARC_CHAIN_ID_HEX,
+    chainName: "Arc Testnet",
+    nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, // 네이티브 가스는 18 decimals
+    rpcUrls: ["https://rpc.testnet.arc.network"],
+    blockExplorerUrls: ["https://testnet.arcscan.app"],
+  };
+
+  // USDC 시스템 컨트랙트 (Arc 공식 주소)
+  const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+  // ERC-20 인터페이스는 6 decimals 사용
+  const USDC_DECIMALS = 6;
+
+  let userAddress = null;
+
+  // ── 지갑 연결 ──────────────────────────────────────────────────
+  async function connectWallet() {
+    if (!window.ethereum) { alert("MetaMask를 먼저 설치해줘! metamask.io"); return; }
+    try {
+      // Arc 테스트넷으로 전환 (없으면 추가)
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: ARC_CHAIN_ID_HEX }] });
+      } catch (e) {
+        if (e.code === 4902) {
+          await window.ethereum.request({ method: "wallet_addEthereumChain", params: [ARC_TESTNET] });
+        } else throw e;
+      }
+
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      userAddress = accounts[0];
+
+      document.getElementById("before-connect").style.display = "none";
+      document.getElementById("wallet-info").classList.add("show");
+      document.getElementById("tip-form").classList.add("show");
+      document.getElementById("dot").classList.add("connected");
+      document.getElementById("wallet-addr").textContent = userAddress.slice(0,6) + "..." + userAddress.slice(-4);
+
+      await loadBalance();
+    } catch (err) {
+      alert("연결 실패: " + (err.message || err));
+    }
+  }
+
+  // ── USDC 잔액 조회 (ERC-20, 6 decimals) ────────────────────────
+  async function loadBalance() {
+    try {
+      // balanceOf(address) = 0x70a08231
+      const data = "0x70a08231" + userAddress.slice(2).padStart(64, "0");
+      const result = await window.ethereum.request({
+        method: "eth_call",
+        params: [{ to: USDC_ADDRESS, data }, "latest"],
+      });
+      const raw = BigInt(result);
+      const balance = (Number(raw) / Math.pow(10, USDC_DECIMALS)).toFixed(2);
+      document.getElementById("wallet-balance").textContent = balance + " USDC";
+    } catch {
+      document.getElementById("wallet-balance").textContent = "— USDC";
+    }
+  }
+
+  // ── 금액 프리셋 ────────────────────────────────────────────────
+  function setAmount(val, el) {
+    document.getElementById("amount").value = val;
+    document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+    el.classList.add("active");
+  }
+
+  // ── USDC 전송 (ERC-20 transfer, 6 decimals) ────────────────────
+  async function sendTip() {
+    const to = document.getElementById("to-address").value.trim();
+    const amount = parseFloat(document.getElementById("amount").value);
+
+    if (!to || !to.startsWith("0x") || to.length !== 42) { showError("올바른 지갑 주소를 입력해줘 (0x...)"); return; }
+    if (!amount || amount <= 0) { showError("금액을 입력해줘"); return; }
+
+    hideStatus();
+    document.getElementById("status-pending").classList.add("show");
+    document.getElementById("btn-send").disabled = true;
+
+    try {
+      // transfer(address,uint256) = 0xa9059cbb | ERC-20: 6 decimals
+      const amountInUnits = BigInt(Math.round(amount * Math.pow(10, USDC_DECIMALS)));
+      const paddedTo = to.slice(2).padStart(64, "0");
+      const paddedAmount = amountInUnits.toString(16).padStart(64, "0");
+      const data = "0xa9059cbb" + paddedTo + paddedAmount;
+
+      const txHash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [{ from: userAddress, to: USDC_ADDRESS, data }],
+      });
+
+      document.getElementById("status-pending").classList.remove("show");
+      document.getElementById("status-success").classList.add("show");
+      const txLink = document.getElementById("tx-link");
+      txLink.href = "https://testnet.arcscan.app/tx/" + txHash;
+      txLink.textContent = txHash.slice(0,10) + "..." + txHash.slice(-6) + " →";
+
+      await loadBalance();
+    } catch (err) {
+      document.getElementById("status-pending").classList.remove("show");
+      showError(err.message || "트랜잭션 실패");
+    }
+
+    document.getElementById("btn-send").disabled = false;
+  }
+
+  function hideStatus() {
+    ["status-pending","status-success","status-error"].forEach(id =>
+      document.getElementById(id).classList.remove("show")
+    );
+  }
+  function showError(msg) {
+    hideStatus();
+    document.getElementById("error-msg").textContent = msg;
+    document.getElementById("status-error").classList.add("show");
+  }
+</script>
+</body>
+</html>
