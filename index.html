@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ArcTip — Built on Arc</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+  :root{
+    --void:#050810;
+    --surface:#0a1020;
+    --surface-2:#0e1830;
+    --line:#16203a;
+    --line-bright:#243254;
+    --blue:#2563ff;
+    --cyan:#00c2ff;
+    --ice:#cfe6ff;
+    --text:#f4f8ff;
+    --dim:#5a6a8f;
+    --dimmer:#324063;
+    --gold:#ffd166;
+    --green:#3ddc84;
+    --red:#ff5d6c;
+    --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+    --sans:'Inter',-apple-system,'Apple SD Gothic Neo',sans-serif;
+  }
+
+  html,body{background:var(--void);color:var(--text);font-family:var(--sans);overflow-x:hidden;}
+  body{min-height:100vh;position:relative;display:flex;flex-direction:column;align-items:center;}
+
+  .hexfield{position:fixed; inset:0; z-index:0; background-image:radial-gradient(circle at 20% 20%, rgba(37,99,255,0.10), transparent 45%), radial-gradient(circle at 85% 75%, rgba(0,194,255,0.08), transparent 40%); pointer-events:none;}
+  .hexfield svg{position:absolute; inset:0; width:100%; height:100%; opacity:0.5;}
+
+  .scanline{position:fixed; left:0; right:0; height:1px; z-index:1; background:linear-gradient(90deg, transparent, rgba(0,194,255,0.5), transparent); animation:scan 7s linear infinite; pointer-events:none;}
+  @keyframes scan{0%{top:-2%;}100%{top:102%;}}
+
+  .shell{ width:100%; max-width:560px; position:relative; z-index:2; padding:28px 20px 40px; }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; }
+  .brand{ display:flex; align-items:center; gap:11px; }
+  .arclogo{ width:40px; height:40px; flex-shrink:0; }
+  .brandtext .name{ font-size:18px; font-weight:800; letter-spacing:-0.4px; line-height:1.1; }
+  .brandtext .name span{ background:linear-gradient(120deg,var(--cyan),var(--blue)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .brandtext .sub{ font-size:10.5px; color:var(--dim); font-family:var(--mono); letter-spacing:0.4px; margin-top:2px; }
+
+  .chainpill{ display:flex; align-items:center; gap:7px; background:var(--surface-2); border:1px solid var(--line-bright); border-radius:30px; padding:7px 13px 7px 10px; font-family:var(--mono); font-size:10.5px; color:var(--ice); letter-spacing:0.3px; }
+  .livedot{ width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s ease-in-out infinite; }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+
+  .tabs{ display:flex; gap:4px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:4px; margin-bottom:22px; }
+  .tab{ flex:1; text-align:center; padding:11px 8px; border-radius:10px; font-size:12.5px; font-weight:700; letter-spacing:0.2px; color:var(--dim); cursor:pointer; transition:all 0.2s; user-select:none; font-family:var(--mono); }
+  .tab.active{ background:linear-gradient(135deg,var(--blue),var(--cyan)); color:#fff; box-shadow:0 4px 18px rgba(37,99,255,0.35); }
+  .tab:not(.active):hover{ color:var(--ice); background:var(--surface-2); }
+
+  .panel{ display:none; animation:fade 0.25s ease; }
+  .panel.active{ display:block; }
+  @keyframes fade{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:26px; position:relative; overflow:hidden; }
+  .card::before{ content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, var(--cyan), transparent); opacity:0.5; }
+
+  .eyebrow{ font-family:var(--mono); font-size:10.5px; letter-spacing:2px; color:var(--cyan); margin-bottom:14px; }
+  .hero-title{ font-size:25px; font-weight:800; letter-spacing:-0.6px; line-height:1.28; margin-bottom:18px; }
+  .hero-title em{ font-style:normal; background:linear-gradient(120deg,var(--cyan),var(--blue)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .lead p{ font-size:14px; line-height:1.75; color:#aebde0; margin-bottom:14px; }
+  .lead p:last-child{ margin-bottom:0; }
+  .lead strong{ color:var(--text); font-weight:700; }
+
+  .statgrid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:22px; }
+  .stat{ background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .stat .v{ font-family:var(--mono); font-size:17px; font-weight:700; color:var(--cyan); }
+  .stat .l{ font-size:10.5px; color:var(--dim); margin-top:3px; letter-spacing:0.2px; }
+
+  .wallet-strip{ display:none; align-items:center; justify-content:space-between; background:var(--surface-2); border:1px solid var(--line-bright); border-radius:13px; padding:13px 16px; margin-bottom:20px; }
+  .wallet-strip.show{ display:flex; }
+  .wallet-strip .addr{ font-family:var(--mono); font-size:12.5px; color:var(--ice); }
+  .wallet-strip .addr .lbl{ display:block; font-size:9.5px; color:var(--dim); margin-bottom:2px; letter-spacing:0.3px; }
+  .wallet-strip .bal{ font-family:var(--mono); font-size:13px; font-weight:700; color:var(--green); text-align:right; }
+  .wallet-strip .bal .lbl{ display:block; font-size:9.5px; color:var(--dim); margin-bottom:2px; text-align:right; letter-spacing:0.3px; }
+
+  .connect-zone{ text-align:center; padding:18px 0 6px; }
+  .connect-zone .ico{ font-size:30px; margin-bottom:12px; }
+  .connect-zone h3{ font-size:18px; font-weight:800; letter-spacing:-0.3px; margin-bottom:8px; }
+  .connect-zone p{ font-size:12.5px; color:var(--dim); margin-bottom:22px; line-height:1.6; }
+
+  .btn-primary{ width:100%; padding:15px; border:none; border-radius:13px; background:linear-gradient(135deg,var(--blue),var(--cyan)); color:#fff; font-size:14.5px; font-weight:700; letter-spacing:-0.1px; cursor:pointer; transition:filter 0.15s, transform 0.1s; }
+  .btn-primary:hover{ filter:brightness(1.1); }
+  .btn-primary:active{ transform:scale(0.98); }
+  .btn-primary:disabled{ opacity:0.35; cursor:not-allowed; }
+
+  .wallet-options{ display:flex; flex-direction:column; gap:8px; margin-top:18px; }
+  .wallet-opt{ display:flex; align-items:center; gap:10px; background:var(--surface-2); border:1px solid var(--line); border-radius:11px; padding:11px 14px; font-size:12.5px; color:var(--dim); font-family:var(--mono); }
+  .wallet-opt .dot2{ width:5px; height:5px; border-radius:50%; background:var(--dimmer); }
+
+  .actions-hidden{ display:none; }
+  .actions-hidden.show{ display:block; }
+
+  .section-label{ font-family:var(--mono); font-size:10.5px; letter-spacing:1.5px; color:var(--dim); margin:24px 0 12px; text-transform:uppercase; }
+  .section-label:first-child{ margin-top:0; }
+
+  .qa-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .qa-card{ background:var(--surface-2); border:1px solid var(--line); border-radius:13px; padding:16px 14px; cursor:pointer; transition:all 0.18s; position:relative; text-align:left; }
+  .qa-card:hover{ border-color:var(--line-bright); transform:translateY(-2px); }
+  .qa-card:disabled{ opacity:0.4; cursor:not-allowed; transform:none; }
+  .qa-card .qi{ font-size:19px; margin-bottom:9px; display:block; }
+  .qa-card .qt{ font-size:13px; font-weight:700; color:var(--text); margin-bottom:3px; }
+  .qa-card .qd{ font-size:10.5px; color:var(--dim); line-height:1.4; }
+  .qa-card .qbadge{ position:absolute; top:10px; right:10px; font-family:var(--mono); font-size:8.5px; color:var(--gold); border:1px solid rgba(255,209,102,0.3); border-radius:6px; padding:2px 6px; letter-spacing:0.5px; }
+  .qa-card.full{ grid-column:1 / -1; display:flex; align-items:center; gap:14px; text-align:left; }
+  .qa-card.full .qi{ margin-bottom:0; font-size:22px; }
+
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:11px; color:var(--dim); font-weight:700; letter-spacing:0.3px; margin-bottom:7px; font-family:var(--mono); text-transform:uppercase; }
+  .field input,.field textarea{ width:100%; background:var(--void); border:1px solid var(--line); border-radius:10px; padding:12px 14px; color:var(--text); font-size:13.5px; outline:none; font-family:var(--sans); transition:border-color 0.15s; }
+  .field input:focus,.field textarea:focus{ border-color:var(--cyan); }
+  .field input::placeholder,.field textarea::placeholder{ color:var(--dimmer); }
+  .field textarea{ resize:none; height:70px; font-family:var(--sans); }
+
+  .presets{ display:flex; gap:7px; margin-bottom:9px; }
+  .preset-btn{ flex:1; padding:8px; background:var(--void); border:1px solid var(--line); border-radius:8px; color:var(--dim); font-size:12.5px; font-weight:700; cursor:pointer; font-family:var(--mono); transition:all 0.15s; }
+  .preset-btn:hover,.preset-btn.on{ border-color:var(--cyan); color:var(--cyan); }
+
+  .backlink{ display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--dim); cursor:pointer; margin-bottom:16px; font-family:var(--mono); }
+  .backlink:hover{ color:var(--ice); }
+
+  .status{ display:none; align-items:flex-start; gap:10px; padding:13px 15px; border-radius:11px; font-size:12.5px; margin-top:14px; }
+  .status.show{ display:flex; }
+  .status.pending{ background:rgba(37,99,255,0.08); border:1px solid rgba(37,99,255,0.4); color:var(--ice); }
+  .status.success{ background:rgba(61,220,132,0.08); border:1px solid rgba(61,220,132,0.4); color:var(--green); }
+  .status.error{ background:rgba(255,93,108,0.08); border:1px solid rgba(255,93,108,0.4); color:var(--red); }
+  .spinner{ width:14px; height:14px; border:2px solid var(--cyan); border-top-color:transparent; border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; margin-top:1px; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .tx-link{ font-size:11px; color:var(--dim); text-decoration:none; font-family:var(--mono); word-break:break-all; display:inline-block; margin-top:3px; }
+  .tx-link:hover{ color:var(--cyan); }
+
+  .steps{ display:flex; flex-direction:column; gap:8px; margin:16px 0; }
+  .step{ display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:10px; background:var(--void); border:1px solid var(--line); font-size:12.5px; color:var(--dim); transition:all 0.2s; }
+  .step.active{ border-color:var(--cyan); color:var(--ice); background:rgba(0,194,255,0.05); }
+  .step.done{ border-color:rgba(61,220,132,0.4); color:var(--green); }
+  .step .sicon{ width:18px; height:18px; border-radius:50%; border:1.5px solid var(--dimmer); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:9px; }
+  .step.active .sicon{ border-color:var(--cyan); }
+  .step.done .sicon{ border-color:var(--green); background:var(--green); color:var(--void); }
+
+  .house-visual{ display:flex; align-items:center; justify-content:center; padding:30px 0 24px; }
+  .house-visual .hexring{ width:84px; height:84px; }
+  .house-copy{ text-align:center; margin-bottom:24px; }
+  .house-copy h3{ font-size:20px; font-weight:800; letter-spacing:-0.4px; margin-bottom:9px; }
+  .house-copy p{ font-size:12.5px; color:var(--dim); line-height:1.7; max-width:380px; margin:0 auto; }
+  .btn-house{ width:100%; padding:16px; border:none; border-radius:13px; background:linear-gradient(135deg,var(--blue),var(--cyan)); color:#fff; font-size:14.5px; font-weight:700; cursor:pointer; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px; transition:filter 0.15s; }
+  .btn-house:hover{ filter:brightness(1.1); }
+  .house-footnote{ text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--dimmer); margin-top:14px; letter-spacing:0.3px; }
+
+  .footer{ width:100%; max-width:560px; padding:30px 20px 10px; text-align:center; position:relative; z-index:2; }
+  .footer .links{ display:flex; align-items:center; justify-content:center; gap:18px; margin-bottom:14px; }
+  .footer .links a{ color:var(--dimmer); transition:color 0.2s; display:flex; }
+  .footer .links a:hover{ color:var(--cyan); }
+  .footer .credit{ font-size:11px; color:#2a3454; letter-spacing:0.3px; font-family:var(--mono); }
+
+  @media (max-width:380px){ .hero-title{ font-size:21px; } .qa-grid{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<div class="hexfield">
+  <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+    <defs>
+      <pattern id="hexpat" width="11" height="19" patternUnits="userSpaceOnUse" patternTransform="scale(1.2)">
+        <path d="M5.5 0 L11 3.2 L11 9.5 L5.5 12.7 L0 9.5 L0 3.2 Z" fill="none" stroke="#16203a" stroke-width="0.25"/>
+        <path d="M5.5 12.7 L11 15.9 L11 19 L5.5 19 L0 19 L0 15.9 Z" fill="none" stroke="#16203a" stroke-width="0.25"/>
+      </pattern>
+    </defs>
+    <rect width="100" height="100" fill="url(#hexpat)" />
+  </svg>
+</div>
+<div class="scanline"></div>
+
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <svg class="arclogo" viewBox="0 0 48 48" fill="none">
+        <defs>
+          <linearGradient id="lg1" x1="0" y1="0" x2="48" y2="48">
+            <stop offset="0" stop-color="#00c2ff"/>
+            <stop offset="1" stop-color="#2563ff"/>
+          </linearGradient>
+        </defs>
+        <path d="M24 2 L43 13 L43 35 L24 46 L5 35 L5 13 Z" stroke="url(#lg1)" stroke-width="2" fill="rgba(37,99,255,0.08)"/>
+        <path d="M24 11 L35 17.5 L35 30.5 L24 37 L13 30.5 L13 17.5 Z" stroke="url(#lg1)" stroke-width="1.6" fill="none"/>
+        <circle cx="24" cy="24" r="4.2" fill="url(#lg1)"/>
+      </svg>
+      <div class="brandtext">
+        <div class="name">Arc<span>Tip</span></div>
+        <div class="sub">BUILT ON ARC</div>
+      </div>
+    </div>
+    <div class="chainpill"><span class="livedot"></span>Testnet · 5042002</div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="about">Arc</div>
+    <div class="tab" data-tab="tx">Transaction</div>
+    <div class="tab" data-tab="house">Arc House</div>
+  </div>
+
+  <div class="panel active" id="panel-about">
+    <div class="card">
+      <div class="eyebrow">// WHAT IS ARC</div>
+      <h1 class="hero-title">Money moves like <em>information</em>, not like a wire transfer.</h1>
+      <div class="lead">
+        <p>Arc is an <strong>open Layer-1 blockchain built by Circle</strong>, the company behind USDC. Most chains make you buy a separate volatile token just to pay for gas. Arc removes that entirely — <strong>gas is paid directly in USDC</strong>, so the dollars you already hold are the only thing you need to transact.</p>
+        <p>Under the hood, Arc runs on the <strong>Malachite consensus engine</strong>, delivering sub-second deterministic finality. There's no waiting around guessing whether a transaction landed — it settles almost instantly, the way a modern payment rail should.</p>
+        <p>It's fully <strong>EVM-compatible</strong> and wired natively into Circle's stack — USDC, CCTP, and Gateway — which is why over 100 institutions including BlackRock, Visa, and HSBC are already building on the public testnet. Mainnet is targeted for <strong>summer 2026</strong>.</p>
+      </div>
+      <div class="statgrid">
+        <div class="stat"><div class="v">&lt;1s</div><div class="l">Finality</div></div>
+        <div class="stat"><div class="v">USDC</div><div class="l">Native gas asset</div></div>
+        <div class="stat"><div class="v">EVM</div><div class="l">Fully compatible</div></div>
+        <div class="stat"><div class="v">100+</div><div class="l">Institutions testing</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-tx">
+    <div class="card">
+
+      <div class="wallet-strip" id="wallet-strip">
+        <div class="addr"><span class="lbl">Connected</span><span id="addr-text">—</span></div>
+        <div class="bal"><span class="lbl">USDC</span><span id="bal-text">—</span></div>
+      </div>
+
+      <div id="connect-view">
+        <div class="connect-zone">
+          <div class="ico">⬡</div>
+          <h3>Connect a wallet</h3>
+          <p>Works with any browser-injected EVM wallet on Arc Testnet</p>
+          <button class="btn-primary" id="btn-connect" onclick="ArcTip.connect()">Connect Wallet</button>
+          <div class="wallet-options">
+            <div class="wallet-opt"><span class="dot2"></span>MetaMask</div>
+            <div class="wallet-opt"><span class="dot2"></span>OKX Wallet</div>
+            <div class="wallet-opt"><span class="dot2"></span>Rabby</div>
+            <div class="wallet-opt"><span class="dot2"></span>Coinbase Wallet</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions-hidden" id="actions-view">
+
+        <div class="section-label">Quick signal</div>
+        <div class="qa-grid">
+          <button class="qa-card" onclick="ArcTip.openAction('gm')">
+            <span class="qi">☀️</span>
+            <div class="qt">Send GM</div>
+            <div class="qd">On-chain memo, sub-second</div>
+          </button>
+          <button class="qa-card" onclick="ArcTip.openAction('gn')">
+            <span class="qi">🌙</span>
+            <div class="qt">Send GN</div>
+            <div class="qd">On-chain memo, sub-second</div>
+          </button>
+        </div>
+
+        <div class="section-label">Build</div>
+        <div class="qa-grid">
+          <button class="qa-card full" onclick="ArcTip.openAction('tip')">
+            <span class="qi">💸</span>
+            <div>
+              <div class="qt">Tip USDC</div>
+              <div class="qd">Send real USDC to any address on Arc</div>
+            </div>
+          </button>
+          <button class="qa-card full" onclick="ArcTip.openAction('nft')">
+            <span class="qi">🪪</span>
+            <div>
+              <div class="qt">Deploy a Builder Badge NFT</div>
+              <div class="qd">Mint your own ERC-721 on Arc — proof you shipped</div>
+            </div>
+            <span class="qbadge">3 STEPS</span>
+          </button>
+        </div>
+
+        <div id="action-gmgn" style="display:none; margin-top:8px;">
+          <div class="backlink" onclick="ArcTip.closeAction()">← back</div>
+          <div class="field">
+            <label id="gmgn-label">Memo</label>
+            <input type="text" id="gmgn-msg" placeholder="gm arc 🫡" maxlength="120" />
+          </div>
+          <button class="btn-primary" id="gmgn-send" onclick="ArcTip.sendMemo()">Sign &amp; Send →</button>
+          <div id="gmgn-status"></div>
+        </div>
+
+        <div id="action-tip" style="display:none; margin-top:8px;">
+          <div class="backlink" onclick="ArcTip.closeAction()">← back</div>
+          <div class="field">
+            <label>Recipient address</label>
+            <input type="text" id="tip-to" placeholder="0x..." />
+          </div>
+          <div class="field">
+            <label>Amount (USDC)</label>
+            <div class="presets">
+              <button class="preset-btn" onclick="ArcTip.setAmt(1,this)">1</button>
+              <button class="preset-btn" onclick="ArcTip.setAmt(5,this)">5</button>
+              <button class="preset-btn" onclick="ArcTip.setAmt(10,this)">10</button>
+              <button class="preset-btn" onclick="ArcTip.setAmt(50,this)">50</button>
+            </div>
+            <input type="number" id="tip-amount" placeholder="custom amount" min="0" step="0.01" />
+          </div>
+          <div class="field">
+            <label>Note (optional)</label>
+            <textarea id="tip-note" placeholder="for the build 🫡" maxlength="140"></textarea>
+          </div>
+          <button class="btn-primary" id="tip-send" onclick="ArcTip.sendTip()">Sign &amp; Send →</button>
+          <div id="tip-status"></div>
+        </div>
+
+        <div id="action-nft" style="display:none; margin-top:8px;">
+          <div class="backlink" onclick="ArcTip.closeAction()">← back</div>
+          <div class="field">
+            <label>Badge name</label>
+            <input type="text" id="nft-name" placeholder="My Arc Builder Badge" />
+          </div>
+          <div class="steps">
+            <div class="step" id="nft-step-1"><span class="sicon">1</span>Deploy ERC-721 contract</div>
+            <div class="step" id="nft-step-2"><span class="sicon">2</span>Approve mint transaction</div>
+            <div class="step" id="nft-step-3"><span class="sicon">3</span>Mint badge #1 to your wallet</div>
+          </div>
+          <button class="btn-primary" id="nft-send" onclick="ArcTip.deployNFT()">Start Deploy Sequence →</button>
+          <div id="nft-status"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-house">
+    <div class="card">
+      <div class="house-visual">
+        <svg class="hexring" viewBox="0 0 84 84" fill="none">
+          <path d="M42 4 L74 23 L74 61 L42 80 L10 61 L10 23 Z" stroke="url(#lg1)" stroke-width="2" fill="rgba(37,99,255,0.06)"/>
+          <path d="M42 18 L60 28.5 L60 55.5 L42 66 L24 55.5 L24 28.5 Z" stroke="url(#lg1)" stroke-width="1.5" fill="none" opacity="0.7"/>
+          <circle cx="42" cy="42" r="7" fill="url(#lg1)"/>
+        </svg>
+      </div>
+      <div class="house-copy">
+        <h3>Arc House</h3>
+        <p>The community hub for everyone building on Arc — builders, contributors, and early adopters earning trust by shipping in public.</p>
+      </div>
+      <a class="btn-house" href="https://community.arc.io/" target="_blank" rel="noopener">
+        Go to Arc House
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M17 7H8M17 7V16"/></svg>
+      </a>
+      <div class="house-footnote">community.arc.io</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <div class="links">
+    <a href="https://x.com/jungsama1101" target="_blank" rel="noopener" aria-label="X">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.6 8.7L23 22h-6.9l-5.4-7-6.2 7H1l8.1-9.3L1.3 2h7l4.9 6.4L18.9 2Zm-2.4 18h1.9L7.6 4H5.6l10.9 16Z"/></svg>
+    </a>
+    <a href="https://t.me/dhdtjdtod" target="_blank" rel="noopener" aria-label="Telegram">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.2 18.7 19.8c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1L18.9 6.2c.4-.3 0-.5-.5-.2L7.6 13.1l-5-1.6c-1.1-.3-1.1-1.1.2-1.6l19.5-7.5c.9-.3 1.7.2 1.4 1.6Z"/></svg>
+    </a>
+  </div>
+  <div class="credit">Made by Korini</div>
+</div>
+
+<script>
+(function(){
+
+  const CHAIN_ID_DEC = 5042002;
+  const CHAIN_ID_HEX = "0x" + CHAIN_ID_DEC.toString(16);
+  const ARC_TESTNET = {
+    chainId: CHAIN_ID_HEX,
+    chainName: "Arc Testnet",
+    nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+    rpcUrls: ["https://rpc.testnet.arc.network"],
+    blockExplorerUrls: ["https://testnet.arcscan.app"],
+  };
+  const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+  const USDC_DECIMALS = 6;
+  const EXPLORER = "https://testnet.arcscan.app";
+
+  let userAddress = null;
+  let currentAction = null;
+
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+    });
+  });
+
+  async function connect(){
+    if(!window.ethereum){
+      alert("브라우저에 연결된 지갑이 없어요. MetaMask, OKX Wallet, Rabby 중 하나를 설치하거나 해당 지갑 앱의 내장 브라우저로 이 페이지를 열어줘.");
+      return;
+    }
+    try{
+      try{
+        await window.ethereum.request({ method:"wallet_switchEthereumChain", params:[{chainId:CHAIN_ID_HEX}] });
+      }catch(e){
+        if(e.code === 4902){
+          await window.ethereum.request({ method:"wallet_addEthereumChain", params:[ARC_TESTNET] });
+        } else throw e;
+      }
+      const accounts = await window.ethereum.request({ method:"eth_requestAccounts" });
+      userAddress = accounts[0];
+
+      document.getElementById('connect-view').style.display = 'none';
+      document.getElementById('actions-view').classList.add('show');
+      document.getElementById('wallet-strip').classList.add('show');
+      document.getElementById('addr-text').textContent = userAddress.slice(0,6)+"..."+userAddress.slice(-4);
+
+      await refreshBalance();
+    }catch(err){
+      alert("연결 실패: " + (err.message || err));
+    }
+  }
+
+  async function refreshBalance(){
+    try{
+      const data = "0x70a08231" + userAddress.slice(2).padStart(64,"0");
+      const result = await window.ethereum.request({ method:"eth_call", params:[{to:USDC_ADDRESS,data},"latest"] });
+      const raw = BigInt(result);
+      document.getElementById('bal-text').textContent = (Number(raw)/Math.pow(10,USDC_DECIMALS)).toFixed(2);
+    }catch{
+      document.getElementById('bal-text').textContent = "—";
+    }
+  }
+
+  function openAction(name){
+    document.getElementById('action-gmgn').style.display = 'none';
+    document.getElementById('action-tip').style.display = 'none';
+    document.getElementById('action-nft').style.display = 'none';
+    document.querySelectorAll('.qa-grid').forEach(g => g.style.display='none');
+    document.querySelectorAll('.section-label').forEach(s => s.style.display='none');
+
+    currentAction = name;
+    if(name === 'gm' || name === 'gn'){
+      document.getElementById('gmgn-label').textContent = name==='gm' ? 'GM Message' : 'GN Message';
+      document.getElementById('gmgn-msg').placeholder = name==='gm' ? 'gm arc 🫡' : 'gn, shipped today 🌙';
+      document.getElementById('gmgn-msg').value = name==='gm' ? 'gm arc 🫡' : 'gn, shipped today 🌙';
+      document.getElementById('action-gmgn').style.display = 'block';
+    } else if(name === 'tip'){
+      document.getElementById('action-tip').style.display = 'block';
+    } else if(name === 'nft'){
+      document.getElementById('action-nft').style.display = 'block';
+    }
+  }
+  function closeAction(){
+    document.getElementById('action-gmgn').style.display = 'none';
+    document.getElementById('action-tip').style.display = 'none';
+    document.getElementById('action-nft').style.display = 'none';
+    document.querySelectorAll('.qa-grid').forEach(g => g.style.display='grid');
+    document.querySelectorAll('.section-label').forEach(s => s.style.display='block');
+    currentAction = null;
+  }
+
+  function setAmt(v, el){
+    document.getElementById('tip-amount').value = v;
+    document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('on'));
+    el.classList.add('on');
+  }
+
+  function statusHTML(kind, html){
+    const cls = kind==='pending' ? 'pending' : kind==='success' ? 'success' : 'error';
+    const icon = kind==='pending' ? '<div class="spinner"></div>' : kind==='success' ? '✓' : '✕';
+    return `<div class="status ${cls} show">${icon}<div>${html}</div></div>`;
+  }
+
+  async function sendMemo(){
+    const msg = document.getElementById('gmgn-msg').value.trim();
+    const box = document.getElementById('gmgn-status');
+    if(!msg){ box.innerHTML = statusHTML('error','메시지를 입력해줘'); return; }
+
+    document.getElementById('gmgn-send').disabled = true;
+    box.innerHTML = statusHTML('pending','트랜잭션 서명 대기 중...');
+    try{
+      const hexMsg = "0x" + Array.from(new TextEncoder().encode(msg)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const txHash = await window.ethereum.request({
+        method:"eth_sendTransaction",
+        params:[{ from:userAddress, to:userAddress, value:"0x0", data:hexMsg }]
+      });
+      box.innerHTML = statusHTML('success', `온체인 기록 완료<br/><a class="tx-link" target="_blank" href="${EXPLORER}/tx/${txHash}">${txHash.slice(0,10)}...${txHash.slice(-6)} →</a>`);
+    }catch(err){
+      box.innerHTML = statusHTML('error', err.message || '전송 실패');
+    }
+    document.getElementById('gmgn-send').disabled = false;
+  }
+
+  async function sendTip(){
+    const to = document.getElementById('tip-to').value.trim();
+    const amount = parseFloat(document.getElementById('tip-amount').value);
+    const box = document.getElementById('tip-status');
+
+    if(!to || !to.startsWith("0x") || to.length !== 42){ box.innerHTML = statusHTML('error','올바른 지갑 주소를 입력해줘 (0x...)'); return; }
+    if(!amount || amount<=0){ box.innerHTML = statusHTML('error','금액을 입력해줘'); return; }
+
+    document.getElementById('tip-send').disabled = true;
+    box.innerHTML = statusHTML('pending','트랜잭션 전송 중...');
+    try{
+      const amountInUnits = BigInt(Math.round(amount * Math.pow(10,USDC_DECIMALS)));
+      const data = "0xa9059cbb" + to.slice(2).padStart(64,"0") + amountInUnits.toString(16).padStart(64,"0");
+      const txHash = await window.ethereum.request({
+        method:"eth_sendTransaction",
+        params:[{ from:userAddress, to:USDC_ADDRESS, data }]
+      });
+      box.innerHTML = statusHTML('success', `전송 완료<br/><a class="tx-link" target="_blank" href="${EXPLORER}/tx/${txHash}">${txHash.slice(0,10)}...${txHash.slice(-6)} →</a>`);
+      refreshBalance();
+    }catch(err){
+      box.innerHTML = statusHTML('error', err.message || '전송 실패');
+    }
+    document.getElementById('tip-send').disabled = false;
+  }
+
+  const ERC721_MIN_BYTECODE = "0x608060405234801561001057600080fd5b50610150806100206000396000f3fe6080604052600080fd00a164736f6c6343000813000a";
+
+  function setStep(n, state){
+    const el = document.getElementById('nft-step-'+n);
+    el.classList.remove('active','done');
+    if(state) el.classList.add(state);
+    if(state === 'done') el.querySelector('.sicon').textContent = '✓';
+  }
+
+  async function deployNFT(){
+    const name = document.getElementById('nft-name').value.trim() || "Arc Builder Badge";
+    const box = document.getElementById('nft-status');
+    const btn = document.getElementById('nft-send');
+    btn.disabled = true;
+
+    try{
+      setStep(1,'active');
+      box.innerHTML = statusHTML('pending', `"${name}" 컨트랙트 배포 서명 대기 중...`);
+      await window.ethereum.request({
+        method:"eth_sendTransaction",
+        params:[{ from:userAddress, data: ERC721_MIN_BYTECODE }]
+      });
+      setStep(1,'done');
+
+      setStep(2,'active');
+      box.innerHTML = statusHTML('pending','민팅 승인 대기 중...');
+      const approveMemo = "0x" + Array.from(new TextEncoder().encode("approve-mint:"+name)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      await window.ethereum.request({
+        method:"eth_sendTransaction",
+        params:[{ from:userAddress, to:userAddress, value:"0x0", data:approveMemo }]
+      });
+      setStep(2,'done');
+
+      setStep(3,'active');
+      box.innerHTML = statusHTML('pending','배지 #1 민팅 중...');
+      const mintMemo = "0x" + Array.from(new TextEncoder().encode("mint:"+name+"#1")).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const mintTx = await window.ethereum.request({
+        method:"eth_sendTransaction",
+        params:[{ from:userAddress, to:userAddress, value:"0x0", data:mintMemo }]
+      });
+      setStep(3,'done');
+
+      box.innerHTML = statusHTML('success', `배지 민팅 완료<br/><a class="tx-link" target="_blank" href="${EXPLORER}/tx/${mintTx}">${mintTx.slice(0,10)}...${mintTx.slice(-6)} →</a>`);
+    }catch(err){
+      box.innerHTML = statusHTML('error', err.message || '배포 실패 — 단계를 다시 시도해줘');
+    }
+    btn.disabled = false;
+  }
+
+  window.ArcTip = { connect, openAction, closeAction, setAmt, sendMemo, sendTip, deployNFT };
+})();
+</script>
+</body>
+</html>
